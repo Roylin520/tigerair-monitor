@@ -23,6 +23,8 @@ LIMIT_PER_PERSON = 9000     # tax-inclusive round trip; rows at or under this ar
 # The higher return figure is used so the estimate errs on the expensive side.
 TAX_OUT, TAX_RET = 1100, 1785
 HISTORY, REPORT = HERE / "data" / "history.csv", HERE / "docs" / "index.html"
+BOOKING = ("https://booking.tigerairtw.com/?outbound={o}-{d}&departureDate={dep}&inbound={d}-{o}"
+           "&returnDate={ret}&adult={a}&children={c}&type=roundTrip&language=zh-TW&currencyCode=TWD")
 API = ("https://api-cms.tigerairtw.com/api/app/book/daily-prices?origin={o}&destination={d}"
        "&userCurrency=TWD&pricingCurrency=TWD&since={s}&until={u}")
 WD = "一二三四五六日"
@@ -75,6 +77,10 @@ def read_history():
         return [row for row in csv.DictReader(f) if row["total_per_adult"]]
 
 
+def booking_url(r):
+    return BOOKING.format(o=ORIGIN, d=DEST, dep=r["dep"], ret=r["ret"], a=ADULTS, c=CHILDREN)
+
+
 def fmt_d(s):
     d = date.fromisoformat(s)
     return f"{d.month}/{d.day}（{WD[d.weekday()]}）"
@@ -107,7 +113,8 @@ def write_report(ts, results, error=None):
             f'去 {r["out_fare"]:,}・回 {r["ret_fare"]:,}</div></td>'
             f'<td class="num">{r["fare_per_adult"]:,}</td><td class="num">{r["tax_per_adult"]:,}</td>'
             f'<td class="num strong">{t:,}</td><td class="num">{chg}</td>'
-            f'<td class="num">{low.get(k, t):,}</td><td class="num strong">{r["total_all"]:,}</td></tr>')
+            f'<td class="num">{low.get(k, t):,}</td><td class="num strong">{r["total_all"]:,}</td>'
+            f'<td><a href="{escape(booking_url(r))}" target="_blank" rel="noopener">訂票 ↗</a></td></tr>')
 
     hits = [r for r in results if r["total_per_adult"] <= LIMIT_PER_PERSON]
     banner = (f'<div class="banner hit">有 {len(hits)} 組每人含稅 ≤ {LIMIT_PER_PERSON:,} 元！</div>' if hits else
@@ -123,9 +130,9 @@ def write_report(ts, results, error=None):
 <title>虎航票價監控</title>
 <style>
 :root {{ --bg:#f6f5f2; --card:#fff; --ink:#1f1f1f; --mute:#6b6b6b; --line:#e4e1da; --accent:#f5a623;
-        --up:#c0392b; --down:#1e8449; --hit:#fff4dc; }}
+        --up:#c0392b; --down:#1e8449; --hit:#fff4dc; --link:#b26a00; }}
 @media (prefers-color-scheme: dark) {{ :root {{ --bg:#17171a; --card:#212126; --ink:#ececec; --mute:#9a9aa0;
-        --line:#33333a; --hit:#3a2f17; --up:#ff7a6b; --down:#5fd38d; }} }}
+        --line:#33333a; --hit:#3a2f17; --up:#ff7a6b; --down:#5fd38d; --link:#f5b54a; }} }}
 body {{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 "Noto Sans TC","Microsoft JhengHei",sans-serif; }}
 main {{ max-width:1000px; margin:0 auto; padding:24px 16px; }}
 h1 {{ font-size:22px; margin:0 0 4px; }}
@@ -134,7 +141,9 @@ h1 {{ font-size:22px; margin:0 0 4px; }}
 .banner.hit {{ background:var(--hit); border-color:var(--accent); font-weight:700; }}
 .banner.err {{ color:var(--up); }}
 .wrap {{ overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:10px; }}
-table {{ border-collapse:collapse; width:100%; min-width:680px; }}
+table {{ border-collapse:collapse; width:100%; min-width:760px; }}
+a {{ color:var(--link); text-decoration:none; font-weight:600; white-space:nowrap; }}
+a:hover {{ text-decoration:underline; }}
 th, td {{ padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }}
 th {{ font-size:12px; color:var(--mute); font-weight:600; }}
 tr:last-child td {{ border-bottom:none; }}
@@ -150,7 +159,7 @@ tr.hit td {{ background:var(--hit); }}
 {banner}
 <div class="wrap"><table>
 <thead><tr><th>日期</th><th class="num">每人票價</th><th class="num">每人稅金</th><th class="num">每人含稅（估）</th>
-<th class="num">較上次</th><th class="num">歷史最低</th><th class="num">3 人合計（估）</th></tr></thead>
+<th class="num">較上次</th><th class="num">歷史最低</th><th class="num">3 人合計（估）</th><th>官網</th></tr></thead>
 <tbody>{''.join(rows)}</tbody></table></div>
 <p class="note">票價取自虎航官網每日最低價（tigerLight，不含託運行李）；稅金以實際查到的每人去程 {TAX_OUT:,}、回程 {TAX_RET:,} 估算，
 與結帳金額約差 0～100 元，不含刷卡手續費；兒童與成人同價。最低價座位可能不足 3 位，訂票前請以官網為準。</p>
