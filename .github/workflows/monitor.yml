@@ -1,1 +1,46 @@
+name: Tigerair price monitor
+
+on:
+  schedule:
+    - cron: "17 * * * *"   # every hour at :17 (UTC); off the top of the hour to avoid queue delays
+  workflow_dispatch:        # allows a manual "Run workflow" button
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Asia/Taipei
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+
+      - name: Run monitor (headed Chrome on a virtual display)
+        run: xvfb-run --auto-servernum python monitor.py
+
+      - name: Commit report and history
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs data
+          git diff --cached --quiet || git commit -m "Update prices $(date '+%Y-%m-%d %H:%M')"
+          git pull --rebase --quiet
+          git push
 
