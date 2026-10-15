@@ -2,7 +2,7 @@ name: Tigerair price monitor
 
 on:
   schedule:
-    - cron: "0 * * * *"    # every hour on the hour (UTC); GitHub may start it several minutes late
+    - cron: "30 * * * *"   # every hour at :30 (UTC = Taiwan :30); GitHub may start it a few minutes late
   workflow_dispatch:        # allows a manual "Run workflow" button
     inputs:
       test_email:
