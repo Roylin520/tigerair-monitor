@@ -19,7 +19,7 @@ ORIGIN, DEST, ADULTS, CHILDREN = "KHH", "KIX", 2, 1
 WINDOW_START, WINDOW_END = date(2026, 11, 5), date(2026, 12, 30)
 TRIP_DAYS = (5, 6)          # inclusive of departure and return day
 TOP_N = 10
-LIMIT_PER_PERSON = 9000     # tax-inclusive round trip; rows at or under this are highlighted
+LIMIT_PER_PERSON = 10500    # tax-inclusive round trip; rows at or under this are highlighted
 # Per-person taxes seen on the booking site (2026-10-15): outbound 1,100; return 1,685-1,785.
 # The higher return figure is used so the estimate errs on the expensive side.
 TAX_OUT, TAX_RET = 1100, 1785
