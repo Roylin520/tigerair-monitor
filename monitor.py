@@ -247,112 +247,179 @@ def route_table(cfg, results):
         t = r["total_per_adult"]
         if k in prev and prev[k] != t:
             diff = t - prev[k]
-            chg = f'<span class="{"up" if diff > 0 else "down"}">{"▲" if diff > 0 else "▼"}{abs(diff):,}</span>'
+            chg = f'<span class="pill {"up" if diff > 0 else "down"}">{"▲" if diff > 0 else "▼"} {abs(diff):,}</span>'
         elif k in prev:
-            chg = '<span class="same">—</span>'
+            chg = '<span class="muted">—</span>'
         else:
-            chg = '<span class="same">新</span>'
+            chg = '<span class="pill new">新</span>'
         rows.append(
             f'<tr class="{"hit" if t <= cfg["limit"] else ""}">'
-            f'<td>{fmt_d(r["dep"])} → {fmt_d(r["ret"])}<div class="sub">{r["days"]} 天｜'
-            f'去 {r["out_fare"]:,}・回 {r["ret_fare"]:,}</div></td>'
-            f'<td class="num">{r["fare_per_adult"]:,}</td><td class="num">{r["tax_per_adult"]:,}</td>'
-            f'<td class="num strong">{t:,}</td><td class="num">{chg}</td>'
-            f'<td class="num">{low.get(k, t):,}</td><td class="num strong">{r["total_all"]:,}</td>'
-            f'<td><a href="{escape(booking_url(cfg, r))}" target="_blank" rel="noopener">訂票 ↗</a></td></tr>')
-    return (f'<div class="wrap"><table>'
-            f'<thead><tr><th>日期</th><th class="num">每人票價</th><th class="num">每人稅金</th>'
-            f'<th class="num">每人含稅（估）</th><th class="num">較上次</th><th class="num">歷史最低</th>'
-            f'<th class="num">{cfg["pax"]} 人合計（估）</th><th>官網</th></tr></thead>'
+            f'<td class="date">{fmt_d(r["dep"])} → {fmt_d(r["ret"])}<div class="sub">{r["days"]} 天'
+            f'<span class="dot">·</span>去 {r["out_fare"]:,}<span class="dot">·</span>回 {r["ret_fare"]:,}</div></td>'
+            f'<td class="num muted opt">{r["fare_per_adult"]:,}</td><td class="num muted opt">{r["tax_per_adult"]:,}</td>'
+            f'<td class="num price">{t:,}<div class="sub m-only">{cfg["pax"]} 人 {r["total_all"]:,}</div></td>'
+            f'<td class="num opt">{chg}</td>'
+            f'<td class="num opt muted">{low.get(k, t):,}</td>'
+            f'<td class="num strong opt">{r["total_all"]:,}</td>'
+            f'<td class="act"><a class="btn" href="{escape(booking_url(cfg, r))}" target="_blank" rel="noopener">訂票</a></td></tr>')
+    return (f'<div class="tbl"><table>'
+            f'<thead><tr><th>日期</th><th class="num opt">每人票價</th><th class="num opt">每人稅金</th>'
+            f'<th class="num">每人含稅（估）</th><th class="num opt">較上次</th><th class="num opt">歷史最低</th>'
+            f'<th class="num opt">{cfg["pax"]} 人合計（估）</th><th></th></tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>')
 
 
 def write_report(ts, sections, config_error=None):
     """sections = [(cfg, results, error)]; config_error = message when config.toml is unusable."""
-    body = []
+    body, chips = [], []
     if config_error:
-        title, meta = "虎航票價監控", f"最後檢查：{ts}（台灣時間）"
-        body.append(f'<div class="banner err">本次執行失敗：{escape(config_error)}</div>')
+        title = "虎航票價監控"
+        chips.append(f"最後檢查 {ts}")
+        body.append(f'<div class="banner err"><b>本次執行失敗</b>{escape(config_error)}</div>')
         note = ""
     else:
         cfg0 = sections[0][0]
-        title = f'虎航 {station(cfg0["origin"])}出發 票價監控'
-        meta = (f'最後檢查：{ts}（台灣時間）｜{cfg0["pax_text"]}｜去程 {cfg0["start"]:%m/%d} 起～'
-                f'回程 {cfg0["end"]:%m/%d} 前｜玩 {cfg0["days_text"]}｜每 5 分鐘更新')
         limit = cfg0["limit"]
+        title = f'虎航 {station(cfg0["origin"])}出發 票價監控'
+        chips = [f"最後檢查 {ts[5:].replace('-', '/')}", cfg0["pax_text"],
+                 f'去程 {cfg0["start"]:%m/%d} 起～回程 {cfg0["end"]:%m/%d} 前', f'玩 {cfg0["days_text"]}',
+                 f"門檻 每人 {limit:,} 元"]
         hits = sum(1 for _, results, _ in sections for r in results if r["total_per_adult"] <= limit)
-        body.append(f'<div class="banner hit">共 {hits} 組每人含稅 ≤ {limit:,} 元！</div>' if hits else
+        body.append(f'<div class="banner hit"><b>{hits} 組</b>每人含稅 ≤ {limit:,} 元，已用底色標出</div>' if hits else
                     f'<div class="banner">目前沒有每人含稅 ≤ {limit:,} 元的組合</div>')
 
-        summary = []
+        cards = []
         for cfg, results, error in sections:
-            name = f'<a href="#{cfg["dest"]}">{escape(cfg["route"])}</a>'
+            head = f'<div class="route">{escape(cfg["route"])}</div>'
             if error:
-                summary.append(f'<tr><td>{name}</td><td colspan="3" class="err">本次查詢失敗</td></tr>')
+                cards.append(f'<a class="card" href="#{cfg["dest"]}">{head}<div class="big err">查詢失敗</div>'
+                             f'<div class="sub">稍後自動重試</div></a>')
             elif not results:
-                summary.append(f'<tr><td>{name}</td><td colspan="3" class="sub">區間內查不到可組成來回的票價</td></tr>')
+                cards.append(f'<a class="card" href="#{cfg["dest"]}">{head}<div class="big muted">—</div>'
+                             f'<div class="sub">區間內查不到可組成的來回</div></a>')
             else:
                 b = results[0]
                 n = sum(1 for r in results if r["total_per_adult"] <= limit)
-                summary.append(
-                    f'<tr class="{"hit" if n else ""}"><td>{name}</td>'
-                    f'<td>{fmt_d(b["dep"])} → {fmt_d(b["ret"])}</td>'
-                    f'<td class="num strong">{b["total_per_adult"]:,}</td><td class="num">{n}</td></tr>')
-        body.append('<div class="wrap"><table class="summary"><thead><tr><th>航線</th><th>最便宜日期</th>'
-                    '<th class="num">每人含稅（估）</th><th class="num">低於門檻</th></tr></thead>'
-                    f'<tbody>{"".join(summary)}</tbody></table></div>')
+                badge = (f'<span class="pill hitpill">{n} 組低於門檻</span>' if n else
+                         '<span class="pill">無低於門檻</span>')
+                cards.append(
+                    f'<a class="card{" is-hit" if n else ""}" href="#{cfg["dest"]}">{head}'
+                    f'<div class="big"><small>NT$</small>{b["total_per_adult"]:,}<small> /人</small></div>'
+                    f'<div class="sub">{fmt_d(b["dep"])} → {fmt_d(b["ret"])}・{b["days"]} 天</div>{badge}</a>')
+        body.append(f'<div class="cards">{"".join(cards)}</div>')
 
         for cfg, results, error in sections:
-            body.append(f'<h2 id="{cfg["dest"]}">{escape(cfg["route"])}'
-                        f'<span class="sub">稅金 去 {cfg["tax_out"]:,}・回 {cfg["tax_ret"]:,}</span></h2>')
+            body.append(f'<section id="{cfg["dest"]}"><div class="sec-head"><h2>{escape(cfg["route"])}</h2>'
+                        f'<span class="sub">稅金 去 {cfg["tax_out"]:,}・回 {cfg["tax_ret"]:,}</span></div>')
             if error:
-                body.append(f'<div class="banner err">本次查詢失敗：{escape(error)}</div>')
+                body.append(f'<div class="banner err"><b>本次查詢失敗</b>{escape(error)}</div>')
             elif not results:
                 body.append('<div class="banner">設定的日期範圍內查不到可組成來回的票價（這條航線不是每天都飛），'
                             '可放寬 config.toml 的日期或天數。</div>')
             else:
                 body.append(route_table(cfg, results))
+            body.append('</section>')
         note = ('票價取自虎航官網每日最低價（tigerLight，不含託運行李）；稅金以 config.toml 各航線設定的每人稅金估算，'
                 '與結帳金額可能略有差異，不含刷卡手續費；兒童與成人同價。'
                 f'最低價座位可能不足 {cfg0["pax"]} 位，訂票前請以官網為準。')
 
+    chip_html = "".join(f"<span>{escape(c)}</span>" for c in chips)
     REPORT.parent.mkdir(exist_ok=True)
     REPORT.write_text(f"""<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="600">
 <title>{escape(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-:root {{ --bg:#f6f5f2; --card:#fff; --ink:#1f1f1f; --mute:#6b6b6b; --line:#e4e1da; --accent:#f5a623;
-        --up:#c0392b; --down:#1e8449; --hit:#fff4dc; --link:#b26a00; }}
-@media (prefers-color-scheme: dark) {{ :root {{ --bg:#17171a; --card:#212126; --ink:#ececec; --mute:#9a9aa0;
-        --line:#33333a; --hit:#3a2f17; --up:#ff7a6b; --down:#5fd38d; --link:#f5b54a; }} }}
-body {{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 "Noto Sans TC","Microsoft JhengHei",sans-serif; }}
-main {{ max-width:1000px; margin:0 auto; padding:24px 16px; }}
-h1 {{ font-size:22px; margin:0 0 4px; }}
-h2 {{ font-size:18px; margin:28px 0 10px; scroll-margin-top:12px; }}
-h2 .sub {{ margin-left:10px; font-weight:400; }}
-.meta {{ color:var(--mute); font-size:13px; margin-bottom:16px; }}
-.banner {{ padding:10px 14px; border-radius:8px; background:var(--card); border:1px solid var(--line); margin-bottom:12px; }}
-.banner.hit {{ background:var(--hit); border-color:var(--accent); font-weight:700; }}
-.banner.err, .err {{ color:var(--up); }}
-.wrap {{ overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:10px; }}
-table {{ border-collapse:collapse; width:100%; min-width:760px; }}
-table.summary {{ min-width:520px; }}
-a {{ color:var(--link); text-decoration:none; font-weight:600; white-space:nowrap; }}
-a:hover {{ text-decoration:underline; }}
-th, td {{ padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }}
-th {{ font-size:12px; color:var(--mute); font-weight:600; }}
-tr:last-child td {{ border-bottom:none; }}
+:root {{
+  --bg:#f5f3ee; --card:#ffffff; --ink:#1d1d1f; --mute:#6e6e73; --faint:#a1a1a6; --line:#e8e4dc;
+  --brand:#ffc20e; --brand-ink:#3a2a00; --accent:#f08c00; --hit:#fff6dd; --hit-edge:#f5a623;
+  --up:#d93025; --up-bg:#fde8e7; --down:#1a8a4a; --down-bg:#e3f4ea; --new-bg:#eef1f6; --new:#4a5a78;
+  --link:#b25e00; --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.05);
+}}
+@media (prefers-color-scheme: dark) {{ :root {{
+  --bg:#141416; --card:#1e1e21; --ink:#f2f2f2; --mute:#a0a0a8; --faint:#6d6d75; --line:#2e2e33;
+  --brand:#ffc20e; --brand-ink:#2a1f00; --accent:#ffb340; --hit:#33290f; --hit-edge:#f5a623;
+  --up:#ff7b72; --up-bg:#3a1d1c; --down:#5fd38d; --down-bg:#16301f; --new-bg:#262a33; --new:#b6c2d9;
+  --link:#ffbd4a; --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+}} }}
+* {{ box-sizing:border-box; }}
+body {{ margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.55 "Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif; -webkit-font-smoothing:antialiased; }}
+.hero {{ background:linear-gradient(135deg,#ffd23f 0%,#ffb703 55%,#fb8500 100%); color:var(--brand-ink); }}
+.hero-in {{ max-width:1040px; margin:0 auto; padding:28px 16px 64px; }}
+.brand {{ font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; opacity:.75; }}
+h1 {{ font-size:28px; font-weight:900; margin:4px 0 14px; letter-spacing:.01em; }}
+.chips {{ display:flex; flex-wrap:wrap; gap:8px; }}
+.chips span {{ background:rgba(255,255,255,.55); border:1px solid rgba(58,42,0,.12); border-radius:999px;
+  padding:3px 12px; font-size:13px; font-weight:500; }}
+main {{ max-width:1040px; margin:-44px auto 0; padding:0 16px 40px; }}
+.banner {{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 16px;
+  margin-bottom:16px; box-shadow:var(--shadow); }}
+.banner b {{ margin-right:8px; }}
+.banner.hit {{ border-color:var(--hit-edge); background:var(--hit); }}
+.banner.hit b {{ color:var(--accent); font-size:17px; }}
+.banner.err {{ color:var(--up); }}
+.cards {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin-bottom:8px; }}
+.card {{ display:block; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px 18px;
+  color:var(--ink); text-decoration:none; box-shadow:var(--shadow); transition:transform .15s,border-color .15s; }}
+.card:hover {{ transform:translateY(-2px); border-color:var(--hit-edge); }}
+.card.is-hit {{ border-top:4px solid var(--hit-edge); }}
+.route {{ font-size:15px; font-weight:700; }}
+.big {{ font-size:30px; font-weight:900; margin:6px 0 2px; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }}
+.big small {{ font-size:13px; font-weight:500; color:var(--mute); margin:0 2px; }}
+.card .pill {{ margin-top:10px; }}
+section {{ margin-top:32px; scroll-margin-top:16px; }}
+.sec-head {{ display:flex; align-items:baseline; gap:12px; margin-bottom:10px; }}
+h2 {{ font-size:20px; font-weight:700; margin:0; padding-left:12px; border-left:4px solid var(--brand); }}
+.tbl {{ background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow);
+  overflow-x:auto; }}
+table {{ border-collapse:separate; border-spacing:0; width:100%; min-width:820px; }}
+th {{ background:var(--card); font-size:12px; color:var(--mute); font-weight:500;
+  text-align:left; padding:12px 14px; border-bottom:1px solid var(--line); white-space:nowrap; }}
+td {{ padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:middle; }}
+tbody tr:last-child td {{ border-bottom:none; }}
+tbody tr:hover td {{ background:rgba(127,127,127,.06); }}
 tr.hit td {{ background:var(--hit); }}
+tr.hit:hover td {{ background:var(--hit); filter:brightness(.98); }}
+tr.hit td:first-child {{ box-shadow:inset 4px 0 0 var(--hit-edge); }}
+.date {{ font-weight:500; white-space:nowrap; }}
 .num {{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }}
+.price {{ font-size:17px; font-weight:900; }}
 .strong {{ font-weight:700; }}
-.sub {{ color:var(--mute); font-size:12px; }}
-.up {{ color:var(--up); }} .down {{ color:var(--down); }} .same {{ color:var(--mute); }}
-.note {{ color:var(--mute); font-size:12px; margin-top:16px; }}
-</style></head><body><main>
+.muted {{ color:var(--mute); }}
+.sub {{ color:var(--mute); font-size:12px; font-weight:400; }}
+.dot {{ margin:0 5px; color:var(--faint); }}
+.pill {{ display:inline-block; border-radius:999px; padding:1px 10px; font-size:12px; font-weight:700;
+  background:var(--new-bg); color:var(--new); white-space:nowrap; }}
+.pill.up {{ background:var(--up-bg); color:var(--up); }}
+.pill.down {{ background:var(--down-bg); color:var(--down); }}
+.pill.hitpill {{ background:var(--hit); color:var(--accent); border:1px solid var(--hit-edge); }}
+.act {{ text-align:right; }}
+.btn {{ display:inline-block; padding:6px 14px; border-radius:999px; background:var(--brand); color:var(--brand-ink);
+  font-size:13px; font-weight:700; text-decoration:none; white-space:nowrap; transition:filter .15s; }}
+.btn:hover {{ filter:brightness(.93); }}
+.btn::after {{ content:" ↗"; }}
+.err {{ color:var(--up); }}
+.m-only {{ display:none; }}
+.note {{ color:var(--mute); font-size:12px; margin-top:28px; line-height:1.7; }}
+@media (max-width:640px) {{
+  h1 {{ font-size:23px; }} .hero-in {{ padding:22px 16px 58px; }} .big {{ font-size:26px; }}
+  .sec-head {{ flex-direction:column; gap:2px; }}
+  .opt {{ display:none; }} .m-only {{ display:block; font-weight:500; }} table {{ min-width:0; }}
+  th, td {{ padding:10px 8px; }} .date {{ font-size:14px; }} .price {{ font-size:16px; }}
+  .btn {{ padding:6px 10px; }} .btn::after {{ content:""; }}
+}}
+</style></head><body>
+<header class="hero"><div class="hero-in">
+<div class="brand">Tigerair Fare Watch</div>
 <h1>{escape(title)}</h1>
-<div class="meta">{escape(meta)}</div>
+<div class="chips">{chip_html}</div>
+</div></header>
+<main>
 {"".join(body)}
 <p class="note">{escape(note)}</p>
 </main></body></html>""", encoding="utf-8")
