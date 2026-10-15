@@ -12,6 +12,10 @@ on:
         description: "寄一封測試信（不論是否低於門檻）"
         type: boolean
         default: false
+      scheduled:
+        description: "由外部排程（cron-job.org）觸發"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -40,7 +44,7 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
           TEST_EMAIL: ${{ inputs.test_email }}
-          SCHEDULED: ${{ github.event_name == 'schedule' }}
+          SCHEDULED: ${{ github.event_name == 'schedule' || inputs.scheduled }}
 
       - name: Commit report and history
         if: always()
