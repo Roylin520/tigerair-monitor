@@ -15,7 +15,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
     env:
       TZ: Asia/Taipei
     steps:
@@ -24,15 +24,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
 
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
-
-      - name: Run monitor (headed Chrome on a virtual display)
-        run: xvfb-run --auto-servernum python monitor.py
+      - name: Run monitor (API only, no browser)
+        run: python -u monitor.py
 
       - name: Commit report and history
         if: always()
@@ -43,4 +37,3 @@ jobs:
           git diff --cached --quiet || git commit -m "Update prices $(date '+%Y-%m-%d %H:%M')"
           git pull --rebase --quiet
           git push
-
