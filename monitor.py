@@ -7,8 +7,9 @@ browser entirely:
 3. Estimate the tax-inclusive price with the per-person taxes seen on the booking site.
 4. Append to data/history.csv and regenerate docs/index.html (served by GitHub Pages).
 """
-import csv, json, sys, traceback, urllib.request
+import csv, json, os, smtplib, sys, traceback, urllib.request
 from datetime import date, datetime, timedelta
+from email.message import EmailMessage
 from html import escape
 from pathlib import Path
 
@@ -23,6 +24,8 @@ LIMIT_PER_PERSON = 9000     # tax-inclusive round trip; rows at or under this ar
 # The higher return figure is used so the estimate errs on the expensive side.
 TAX_OUT, TAX_RET = 1100, 1785
 HISTORY, REPORT = HERE / "data" / "history.csv", HERE / "docs" / "index.html"
+NOTIFIED = HERE / "data" / "notified.json"   # combo -> price already emailed, to avoid repeats
+REPORT_URL = "https://roylin520.github.io/tigerair-monitor/"
 BOOKING = ("https://booking.tigerairtw.com/?outbound={o}-{d}&departureDate={dep}&inbound={d}-{o}"
            "&returnDate={ret}&adult={a}&children={c}&type=roundTrip&language=zh-TW&currencyCode=TWD")
 API = ("https://api-cms.tigerairtw.com/api/app/book/daily-prices?origin={o}&destination={d}"
@@ -166,6 +169,53 @@ tr.hit td {{ background:var(--hit); }}
 </main></body></html>""", encoding="utf-8")
 
 
+def notify(ts, results):
+    """Email combos that newly fall to or below the limit (or get cheaper than last emailed).
+
+    Credentials come from environment variables set by GitHub Secrets:
+    SMTP_USER, SMTP_PASS, MAIL_TO (optional SMTP_HOST, SMTP_PORT; defaults to Gmail).
+    TEST_EMAIL=true sends a test message with the current top 3 regardless of the limit.
+    """
+    test = os.environ.get("TEST_EMAIL") == "true"
+    sent = json.loads(NOTIFIED.read_text(encoding="utf-8")) if NOTIFIED.exists() else {}
+    hits = {f'{r["dep"]}_{r["ret"]}': r for r in results if r["total_per_adult"] <= LIMIT_PER_PERSON}
+    new = [r for k, r in hits.items() if r["total_per_adult"] < sent.get(k, 10**9)]
+    # Forget combos that went back above the limit, so a later dip is reported again.
+    sent = {k: v for k, v in sent.items() if k in hits}
+    if not new and not test:
+        NOTIFIED.write_text(json.dumps(sent, indent=1), encoding="utf-8")
+        return
+
+    user, pw, to = (os.environ.get(k, "") for k in ("SMTP_USER", "SMTP_PASS", "MAIL_TO"))
+    if not (user and pw and to):
+        print("email skipped: SMTP_USER / SMTP_PASS / MAIL_TO secrets are not set")
+        return
+
+    rows = new if new else results[:3]
+    subject = (f"[測試] 虎航 高雄⇄大阪 票價通知" if test and not new else
+               f"虎航 高雄⇄大阪：{len(new)} 組每人含稅 ≤ {LIMIT_PER_PERSON:,} 元")
+    lines = [f"檢查時間：{ts}（台灣時間）｜2 大 1 小｜每人含稅為估算", ""]
+    for r in rows:
+        lines += [f'{fmt_d(r["dep"])} → {fmt_d(r["ret"])}（{r["days"]} 天）',
+                  f'  每人含稅 {r["total_per_adult"]:,} 元｜3 人合計 {r["total_all"]:,} 元',
+                  f'  訂票：{booking_url(r)}', ""]
+    lines.append(f"完整報表：{REPORT_URL}")
+
+    msg = EmailMessage()
+    msg["Subject"], msg["From"], msg["To"] = subject, user, to
+    msg.set_content("\n".join(lines))
+    host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
+    port = int(os.environ.get("SMTP_PORT") or 465)
+    with smtplib.SMTP_SSL(host, port, timeout=30) as s:
+        s.login(user, pw)
+        s.send_message(msg)
+
+    for r in new:
+        sent[f'{r["dep"]}_{r["ret"]}'] = r["total_per_adult"]
+    NOTIFIED.write_text(json.dumps(sent, indent=1), encoding="utf-8")
+    print(f"email sent to MAIL_TO: {len(rows)} combos, test={test and not new}")
+
+
 def main():
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     results, error = [], None
@@ -177,6 +227,12 @@ def main():
     except Exception as e:
         error = f"{type(e).__name__}: {e}"
         traceback.print_exc()
+    if results:
+        try:
+            notify(ts, results)
+        except Exception:
+            print("email failed (report still updated):")
+            traceback.print_exc()
     if results or not REPORT.exists():
         write_report(ts, results, error)
     print(f"[{ts}] {'ERROR ' + error if error else 'ok'}: {len(results)} estimates (API mode)")
