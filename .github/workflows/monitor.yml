@@ -1,6 +1,9 @@
 name: Tigerair price monitor
 
 on:
+  push:
+    branches: [main]
+    paths: [config.toml, monitor.py]   # editing the settings re-runs immediately
   schedule:
     - cron: "30 * * * *"   # every hour at :30 (UTC = Taiwan :30); GitHub may start it a few minutes late
   workflow_dispatch:        # allows a manual "Run workflow" button
