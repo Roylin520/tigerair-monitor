@@ -18,6 +18,7 @@ HERE = Path(__file__).resolve().parent
 CONFIG = HERE / "config.toml"
 REPORT = HERE / "docs" / "index.html"
 NOTIFIED = HERE / "data" / "notified.json"   # "<search>:<dep>_<ret>" -> price already emailed
+LAST_RUN = HERE / "data" / "last_run.txt"    # time slot of the last real check, for interval_minutes
 REPORT_URL = "https://roylin520.github.io/tigerair-monitor/"
 BOOKING = ("https://booking.tigerairtw.com/?outbound={o}-{d}&departureDate={dep}&inbound={d}-{o}"
            "&returnDate={ret}&adult={a}&children={c}&type=roundTrip&language=zh-TW&currencyCode=TWD")
@@ -46,6 +47,7 @@ def load_config():
         raise ConfigError(f"config.toml 格式錯誤：{e}") from None
     try:
         t, a, e, r = raw["trip"], raw["alert"], raw["estimate"], raw["report"]
+        s = raw.get("schedule", {})
         c = {
             "origin": str(t["origin"]).strip().upper(), "dest": str(t["destination"]).strip().upper(),
             "start": t["earliest_departure"], "end": t["latest_return"],
@@ -54,6 +56,7 @@ def load_config():
             "limit": int(a["max_price_per_person"]),
             "tax_out": int(e["tax_outbound"]), "tax_ret": int(e["tax_return"]),
             "top_n": int(r["top_n"]),
+            "interval": int(s.get("interval_minutes", 60)),
         }
     except KeyError as k:
         raise ConfigError(f"config.toml 缺少設定項目：{k}") from None
@@ -75,6 +78,8 @@ def load_config():
         problems.append("adults 至少 1 人，adults + children 最多 9 人")
     if c["limit"] <= 0 or c["top_n"] <= 0:
         problems.append("max_price_per_person 與 top_n 必須大於 0")
+    if c["interval"] < 5:
+        problems.append("interval_minutes 最小是 5（GitHub 排程最短每 5 分鐘）")
     if problems:
         raise ConfigError("；".join(problems))
     c["pax"] = c["adults"] + c["children"]
@@ -284,12 +289,33 @@ tr.hit td {{ background:var(--hit); }}
 </main></body></html>""", encoding="utf-8")
 
 
+def time_slot(cfg, now):
+    """Index of the interval_minutes-long slot containing now (slots aligned to the epoch)."""
+    return int(now.timestamp() // 60) // cfg["interval"]
+
+
+def is_due(cfg, now):
+    """Scheduled runs fire every 5 minutes; only check prices once per configured slot."""
+    try:
+        last = LAST_RUN.read_text(encoding="utf-8").split()
+        last_slot, last_interval = int(last[0]), int(last[1])
+    except (OSError, ValueError, IndexError):
+        return True
+    return last_interval != cfg["interval"] or time_slot(cfg, now) != last_slot
+
+
 def main():
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now()
+    ts = now.strftime("%Y-%m-%d %H:%M")
+    forced = os.environ.get("FORCE_RUN") == "true"   # push / manual runs always check
     cfg, results, error = None, [], None
     try:
         cfg = load_config()
+        if not forced and not is_due(cfg, now):
+            print(f'[{ts}] not due yet (interval {cfg["interval"]} min); skipping')
+            return
         results = estimates(cfg)
+        LAST_RUN.write_text(f'{time_slot(cfg, now)} {cfg["interval"]}\n', encoding="utf-8")
         append_history(cfg, ts, results)
         for r in results:
             print(f'  {r["dep"]} -> {r["ret"]}  per person {r["total_per_adult"]:,}  x{cfg["pax"]} {r["total_all"]:,}')
@@ -303,11 +329,12 @@ def main():
             print("email failed (report still updated):")
             traceback.print_exc()
     # Rewrite the report on success or on a config error (so the user sees what to fix);
-    # on a temporary fetch failure keep the last good report.
-    if results or cfg is None or not error or not REPORT.exists():
+    # on a temporary fetch failure keep the last good report. A broken config is reported by
+    # the push run that introduced it; the 5-minute scheduled runs don't rewrite it each time.
+    if results or (cfg is None and forced) or not error or not REPORT.exists():
         write_report(cfg, ts, results, error)
     print(f"[{ts}] {'ERROR ' + error if error else 'ok'}: {len(results)} estimates (API mode)")
-    if error:
+    if error and (cfg is not None or forced):
         sys.exit(1)
 
 
