@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths: [config.toml, monitor.py]   # editing the settings re-runs immediately
   schedule:
-    - cron: "*/5 * * * *"  # wake every 5 min; monitor.py checks prices per config.toml interval_minutes
+    - cron: "*/5 * * * *"  # every 5 minutes (GitHub minimum; runs may start late or be skipped)
   workflow_dispatch:        # allows a manual "Run workflow" button
     inputs:
       test_email:
@@ -40,7 +40,7 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
           TEST_EMAIL: ${{ inputs.test_email }}
-          FORCE_RUN: ${{ github.event_name != 'schedule' }}
+          SCHEDULED: ${{ github.event_name == 'schedule' }}
 
       - name: Commit report and history
         if: always()

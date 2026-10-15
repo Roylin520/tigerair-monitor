@@ -39,8 +39,4 @@ tax_return   = 1785
 # 報表列出最便宜的前幾組
 top_n = 10
 
-[schedule]
-# 每幾分鐘查一次價（最小 5）。例如 15、30、60、120
-# 依時段計算：設 15 就是每個 :00/:15/:30/:45 時段各查一次。
-# GitHub 排程常會延遲幾分鐘，偶爾會跳過一次。
-interval_minutes = 5
+# 執行頻率不在這裡設定，由 .github/workflows/monitor.yml 的 cron 決定（目前每 5 分鐘）。
