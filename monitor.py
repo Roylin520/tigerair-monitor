@@ -72,6 +72,13 @@ def load_config():
     except (TypeError, ValueError) as err:
         raise ConfigError(f"config.toml 數值格式錯誤：{err}") from None
 
+    # earliest_departure = "today" follows the run date; a fixed date already past is moved up to today.
+    today = date.today()
+    base["start_is_today"] = str(base["start"]).strip().lower() == "today" or (
+        isinstance(base["start"], date) and base["start"] <= today)
+    if base["start_is_today"]:
+        base["start"] = today
+
     problems = []
     if not is_code(base["origin"]):
         problems.append(f'origin 要是 3 個英文字母的機場代碼（目前是「{base["origin"]}」）')
@@ -87,7 +94,7 @@ def load_config():
     if dup:
         problems.append(f'[[route]] 的 destination 重複：{"、".join(dup)}')
     if not (isinstance(base["start"], date) and isinstance(base["end"], date)):
-        problems.append("日期要寫成 YYYY-MM-DD，不要加引號")
+        problems.append('日期要寫成 YYYY-MM-DD，不要加引號（earliest_departure 也可以填 "today"）')
     elif base["end"] <= base["start"]:
         problems.append("latest_return 必須晚於 earliest_departure")
     if not base["trip_days"] or min(base["trip_days"]) < 2:
@@ -282,7 +289,9 @@ def write_report(ts, sections, config_error=None):
         limit = cfg0["limit"]
         title = f'虎航 {station(cfg0["origin"])}出發 票價監控'
         chips = [f"最後檢查 {ts[5:].replace('-', '/')}", cfg0["pax_text"],
-                 f'去程 {cfg0["start"]:%m/%d} 起～回程 {cfg0["end"]:%m/%d} 前', f'玩 {cfg0["days_text"]}',
+                 (f'去程 今天（{cfg0["start"]:%m/%d}）' if cfg0["start_is_today"] else f'去程 {cfg0["start"]:%Y/%m/%d}')
+                 + f' 起～回程 {cfg0["end"]:%Y/%m/%d} 前',
+                 f'玩 {cfg0["days_text"]}',
                  f"門檻 每人 {limit:,} 元"]
         hits = sum(1 for _, results, _ in sections for r in results if r["total_per_adult"] <= limit)
         body.append(f'<div class="banner hit"><b>{hits} 組</b>每人含稅 ≤ {limit:,} 元，已用底色標出</div>' if hits else

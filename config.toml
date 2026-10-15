@@ -15,8 +15,9 @@
 origin = "KHH"   # 出發地
 
 # 日期格式 YYYY-MM-DD，不用加引號
-earliest_departure = 2026-11-05   # 最早去程日期
-latest_return      = 2026-12-30   # 最晚回程日期
+# earliest_departure 填 "today"（要加引號）= 每次執行當天，會自動往後推
+earliest_departure = "today"      # 最早去程日期
+latest_return      = 2027-05-28   # 最晚回程日期（民國 116/5/28）
 
 # 玩幾天（含出發與回程當天），可填多個，例如 [4, 5, 6]
 trip_days = [5, 6]
