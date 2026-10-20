@@ -178,6 +178,12 @@ def fmt_d(s):
     return f"{d.month}/{d.day}（{WD[d.weekday()]}）"
 
 
+def fmt_d_mail(s):
+    """fmt_d for the email, with the year in front of dates after this year."""
+    y = date.fromisoformat(s).year
+    return (f"{y}年 " if y > date.today().year else "") + fmt_d(s)
+
+
 def fmt_d_html(s):
     """fmt_d for the report page, with a red year tag on dates after this year."""
     y = date.fromisoformat(s).year
@@ -225,7 +231,7 @@ def notify(ts, sections):
     for cfg, rows in picks:
         lines += [f'【{cfg["route"]}】', ""]
         for r in rows:
-            lines += [f'{fmt_d(r["dep"])} → {fmt_d(r["ret"])}（{r["days"]} 天）',
+            lines += [f'{fmt_d_mail(r["dep"])} → {fmt_d_mail(r["ret"])}（{r["days"]} 天）',
                       f'  每人含稅 {r["total_per_adult"]:,} 元｜{cfg["pax"]} 人合計 {r["total_all"]:,} 元',
                       f'  訂票：{booking_url(cfg, r)}', ""]
     lines.append(f"完整報表：{REPORT_URL}")
