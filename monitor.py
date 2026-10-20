@@ -179,7 +179,7 @@ def fmt_d(s):
 
 
 def fmt_d_html(s):
-    """fmt_d for the report table, with a red year tag on dates after this year."""
+    """fmt_d for the report page, with a red year tag on dates after this year."""
     y = date.fromisoformat(s).year
     return (f'<span class="yr">{y}年</span>' if y > date.today().year else "") + fmt_d(s)
 
@@ -320,7 +320,7 @@ def write_report(ts, sections, config_error=None):
                 cards.append(
                     f'<a class="card{" is-hit" if n else ""}" href="#{cfg["dest"]}">{head}'
                     f'<div class="big"><small>NT$</small>{b["total_per_adult"]:,}<small> /人</small></div>'
-                    f'<div class="sub">{fmt_d(b["dep"])} → {fmt_d(b["ret"])}・{b["days"]} 天</div>{badge}</a>')
+                    f'<div class="sub">{fmt_d_html(b["dep"])} → {fmt_d_html(b["ret"])}・{b["days"]} 天</div>{badge}</a>')
         body.append(f'<div class="cards">{"".join(cards)}</div>')
 
         for cfg, results, error in sections:
