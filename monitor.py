@@ -178,6 +178,12 @@ def fmt_d(s):
     return f"{d.month}/{d.day}（{WD[d.weekday()]}）"
 
 
+def fmt_d_html(s):
+    """fmt_d for the report table, with a red year tag on dates after this year."""
+    y = date.fromisoformat(s).year
+    return (f'<span class="yr">{y}年</span>' if y > date.today().year else "") + fmt_d(s)
+
+
 def notify(ts, sections):
     """One email for every route's combos that newly fall to or below the limit
     (or get cheaper than last emailed). sections = [(cfg, results, error)].
@@ -261,7 +267,7 @@ def route_table(cfg, results):
             chg = '<span class="pill new">新</span>'
         rows.append(
             f'<tr class="{"hit" if t <= cfg["limit"] else ""}">'
-            f'<td class="date">{fmt_d(r["dep"])} → {fmt_d(r["ret"])}<div class="sub">{r["days"]} 天'
+            f'<td class="date">{fmt_d_html(r["dep"])} → {fmt_d_html(r["ret"])}<div class="sub">{r["days"]} 天'
             f'<span class="dot">·</span>去 {r["out_fare"]:,}<span class="dot">·</span>回 {r["ret_fare"]:,}</div></td>'
             f'<td class="num muted opt">{r["fare_per_adult"]:,}</td><td class="num muted opt">{r["tax_per_adult"]:,}</td>'
             f'<td class="num price">{t:,}<div class="sub m-only">{cfg["pax"]} 人 {r["total_all"]:,}</div></td>'
@@ -396,6 +402,7 @@ tr.hit td {{ background:var(--hit); }}
 tr.hit:hover td {{ background:var(--hit); filter:brightness(.98); }}
 tr.hit td:first-child {{ box-shadow:inset 4px 0 0 var(--hit-edge); }}
 .date {{ font-weight:500; white-space:nowrap; }}
+.yr {{ color:var(--up); font-weight:700; margin-right:2px; }}
 .num {{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }}
 .price {{ font-size:17px; font-weight:900; }}
 .strong {{ font-weight:700; }}
