@@ -55,4 +55,4 @@ max_price_per_person = 11000
 # 每條航線列出最便宜的前幾組
 top_n = 10
 
-# 執行頻率不在這裡設定，由 .github/workflows/monitor.yml 的 cron 決定（目前每 5 分鐘）。
+# 執行頻率不在這裡設定，由 .github/workflows/monitor.yml 的 cron 決定（目前已停用）。
