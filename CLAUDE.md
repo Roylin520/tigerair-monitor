@@ -19,7 +19,7 @@ Running locally writes to `data/` and `docs/index.html`, the same files CI commi
 
 ## How it runs
 
-`.github/workflows/monitor.yml` runs `monitor.py` every 5 minutes (cron, and also from an external cron-job.org trigger via `workflow_dispatch` with `scheduled=true`), on pushes that touch `config.toml` or `monitor.py`, and on demand. After each run it commits `docs/` and `data/` back to `main` as "Update prices …". That's why most commits are bot commits, and why you should `git pull --rebase` before pushing. `docs/index.html` is served by GitHub Pages at `REPORT_URL`.
+`.github/workflows/monitor.yml` runs `monitor.py` from an external cron-job.org trigger (`workflow_dispatch` with `scheduled=true`), on pushes that touch `config.toml` or `monitor.py`, and on demand. The built-in 5-minute `schedule` is commented out (disabled); uncomment it to bring it back. After each run it commits `docs/` and `data/` back to `main` as "Update prices …". That's why most commits are bot commits, and why you should `git pull --rebase` before pushing. `docs/index.html` is served by GitHub Pages at `REPORT_URL`.
 
 `SCHEDULED=true` changes how failures are handled. On scheduled runs, a config error or a failure on some routes exits quietly with code 0, so GitHub doesn't send a failure email every 5 minutes. The push run that introduced the problem exits with code 1 and shows the error on the report page.
 
