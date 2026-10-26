@@ -4,8 +4,10 @@ on:
   push:
     branches: [main]
     paths: [config.toml, monitor.py]   # editing the settings re-runs immediately
-  schedule:
-    - cron: "*/5 * * * *"  # every 5 minutes (GitHub minimum; runs may start late or be skipped)
+
+  # 排程設
+  # schedule:
+  #  - cron: "*/5 * * * *"  # every 5 minutes (GitHub minimum; runs may start late or be skipped)
   workflow_dispatch:        # allows a manual "Run workflow" button
     inputs:
       test_email:
