@@ -178,6 +178,18 @@ def fmt_d(s):
     return f"{d.month}/{d.day}（{WD[d.weekday()]}）"
 
 
+def fmt_d_mail(s):
+    """fmt_d for the email, with the year in front of dates after this year."""
+    y = date.fromisoformat(s).year
+    return (f"{y}年 " if y > date.today().year else "") + fmt_d(s)
+
+
+def fmt_d_html(s):
+    """fmt_d for the report page, with a red year tag on dates after this year."""
+    y = date.fromisoformat(s).year
+    return (f'<span class="yr">{y}年</span>' if y > date.today().year else "") + fmt_d(s)
+
+
 def notify(ts, sections):
     """One email for every route's combos that newly fall to or below the limit
     (or get cheaper than last emailed). sections = [(cfg, results, error)].
@@ -219,7 +231,7 @@ def notify(ts, sections):
     for cfg, rows in picks:
         lines += [f'【{cfg["route"]}】', ""]
         for r in rows:
-            lines += [f'{fmt_d(r["dep"])} → {fmt_d(r["ret"])}（{r["days"]} 天）',
+            lines += [f'{fmt_d_mail(r["dep"])} → {fmt_d_mail(r["ret"])}（{r["days"]} 天）',
                       f'  每人含稅 {r["total_per_adult"]:,} 元｜{cfg["pax"]} 人合計 {r["total_all"]:,} 元',
                       f'  訂票：{booking_url(cfg, r)}', ""]
     lines.append(f"完整報表：{REPORT_URL}")
@@ -261,7 +273,7 @@ def route_table(cfg, results):
             chg = '<span class="pill new">新</span>'
         rows.append(
             f'<tr class="{"hit" if t <= cfg["limit"] else ""}">'
-            f'<td class="date">{fmt_d(r["dep"])} → {fmt_d(r["ret"])}<div class="sub">{r["days"]} 天'
+            f'<td class="date">{fmt_d_html(r["dep"])} → {fmt_d_html(r["ret"])}<div class="sub">{r["days"]} 天'
             f'<span class="dot">·</span>去 {r["out_fare"]:,}<span class="dot">·</span>回 {r["ret_fare"]:,}</div></td>'
             f'<td class="num muted opt">{r["fare_per_adult"]:,}</td><td class="num muted opt">{r["tax_per_adult"]:,}</td>'
             f'<td class="num price">{t:,}<div class="sub m-only">{cfg["pax"]} 人 {r["total_all"]:,}</div></td>'
@@ -314,7 +326,7 @@ def write_report(ts, sections, config_error=None):
                 cards.append(
                     f'<a class="card{" is-hit" if n else ""}" href="#{cfg["dest"]}">{head}'
                     f'<div class="big"><small>NT$</small>{b["total_per_adult"]:,}<small> /人</small></div>'
-                    f'<div class="sub">{fmt_d(b["dep"])} → {fmt_d(b["ret"])}・{b["days"]} 天</div>{badge}</a>')
+                    f'<div class="sub">{fmt_d_html(b["dep"])} → {fmt_d_html(b["ret"])}・{b["days"]} 天</div>{badge}</a>')
         body.append(f'<div class="cards">{"".join(cards)}</div>')
 
         for cfg, results, error in sections:
@@ -396,6 +408,7 @@ tr.hit td {{ background:var(--hit); }}
 tr.hit:hover td {{ background:var(--hit); filter:brightness(.98); }}
 tr.hit td:first-child {{ box-shadow:inset 4px 0 0 var(--hit-edge); }}
 .date {{ font-weight:500; white-space:nowrap; }}
+.yr {{ color:var(--up); font-weight:700; margin-right:2px; }}
 .num {{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }}
 .price {{ font-size:17px; font-weight:900; }}
 .strong {{ font-weight:700; }}
